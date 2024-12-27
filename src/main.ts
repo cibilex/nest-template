@@ -10,18 +10,24 @@ import {
   VersioningType,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EnvType } from './env/env.interface';
+import { EnvType, Mode } from './env/env.interface';
 import fastifyHelmet from '@fastify/helmet';
 import { getMetadataStorage, ValidationError } from 'class-validator';
 import { I18nContext } from 'nestjs-i18n';
 import { snakeCase } from './helpers/utils';
 import { ResponseInterceptor } from './response/response.interceptor';
+import redactions from './data/reductions';
+import { randomUUID } from 'crypto';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
-      logger: true,
+      logger: {
+        redact: redactions,
+      },
+      genReqId: () => randomUUID(),
+      disableRequestLogging: false,
     }),
     {
       cors: true,
@@ -113,6 +119,15 @@ async function bootstrap() {
   );
 
   const configService = app.get(ConfigService<EnvType, true>);
+
+  const isDev =
+    configService.get('MODE', {
+      infer: true,
+    }) === Mode.DEV;
+  if (!isDev) {
+    app.use(fastifyHelmet);
+  }
+
   const port = configService.get('PORT', {
     infer: true,
   });
